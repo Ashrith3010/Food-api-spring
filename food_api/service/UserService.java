@@ -9,11 +9,15 @@ import com.food_api.food_api.service.jwt.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 @Service
 public class UserService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -34,11 +38,14 @@ public class UserService {
 
             // Verify password
             if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                LOGGER.warn("Invalid credentials for user: {}", request.getUsername());
                 return LoginResponse.createErrorResponse("Invalid credentials");
             }
 
             // Generate JWT token
             String token = jwtService.generateToken(user);
+
+            LOGGER.info("Login successful for user: {}", user.getUsername());
 
             // Create successful response
             return new LoginResponse(
@@ -49,23 +56,51 @@ public class UserService {
                     user.getUsername()
             );
         } catch (Exception e) {
+            LOGGER.error("Login error: {}", e.getMessage());
             return LoginResponse.createErrorResponse(e.getMessage());
         }
     }
 
     public void register(RegisterRequest request) {
         // Validate required fields
+        validateRegisterRequest(request);
+
+        try {
+            // Create new user
+            User user = new User();
+            user.setUsername(request.getUsername());
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setEmail(request.getEmail());
+            user.setPhone(request.getPhone());
+            user.setType(request.getUserType());
+            user.setCreatedAt(LocalDateTime.now());
+
+            // Set NGO specific fields if applicable
+            if ("ngo".equals(request.getUserType())) {
+                user.setOrganization(request.getOrganization());
+                user.setArea(request.getArea());
+            }
+
+            // Save user
+            userRepository.save(user);
+
+            LOGGER.info("User registered successfully: {}", user.getUsername());
+        } catch (Exception e) {
+            LOGGER.error("Registration error: {}", e.getMessage());
+            throw new RuntimeException("Registration failed. Please try again.");
+        }
+    }
+
+    private void validateRegisterRequest(RegisterRequest request) {
         if (request.getUsername() == null || request.getPassword() == null ||
                 request.getEmail() == null || request.getPhone() == null) {
             throw new IllegalArgumentException("All fields (username, password, email, phone) are required");
         }
 
-        // Validate phone number format
         if (!request.getPhone().matches("\\d{10}")) {
             throw new IllegalArgumentException("Please enter a valid 10-digit phone number");
         }
 
-        // Check for existing credentials
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -75,45 +110,5 @@ public class UserService {
         if (userRepository.existsByPhone(request.getPhone())) {
             throw new IllegalArgumentException("Phone number already exists");
         }
-
-        // Create new user
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setType(request.getUserType());
-        user.setCreatedAt(LocalDateTime.now());
-
-        // Set NGO specific fields if applicable
-        if ("ngo".equals(request.getUserType())) {
-            user.setOrganization(request.getOrganization());
-            user.setArea(request.getArea());
-        }
-
-        // Save user
-        userRepository.save(user);
-    }
-
-    public User getUserById(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-    }
-
-    public User getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-    }
-
-    public boolean existsByUsername(String username) {
-        return userRepository.existsByUsername(username);
-    }
-
-    public boolean existsByEmail(String email) {
-        return userRepository.existsByEmail(email);
-    }
-
-    public boolean existsByPhone(String phone) {
-        return userRepository.existsByPhone(phone);
     }
 }
