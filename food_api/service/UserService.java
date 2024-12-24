@@ -62,11 +62,9 @@ public class UserService {
     }
 
     public void register(RegisterRequest request) {
-        // Validate required fields
         validateRegisterRequest(request);
 
         try {
-            // Create new user
             User user = new User();
             user.setUsername(request.getUsername());
             user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -75,15 +73,16 @@ public class UserService {
             user.setType(request.getUserType());
             user.setCreatedAt(LocalDateTime.now());
 
-            // Set NGO specific fields if applicable
-            if ("ngo".equals(request.getUserType())) {
+            if ("ngo".equalsIgnoreCase(request.getUserType())) {
                 user.setOrganization(request.getOrganization());
                 user.setArea(request.getArea());
+            } else if ("donor".equalsIgnoreCase(request.getUserType())) {
+                if (request.getOrganization() != null || request.getArea() != null) {
+                    throw new IllegalArgumentException("Donor accounts cannot have organization or area fields.");
+                }
             }
 
-            // Save user
             userRepository.save(user);
-
             LOGGER.info("User registered successfully: {}", user.getUsername());
         } catch (Exception e) {
             LOGGER.error("Registration error: {}", e.getMessage());
@@ -94,21 +93,31 @@ public class UserService {
     private void validateRegisterRequest(RegisterRequest request) {
         if (request.getUsername() == null || request.getPassword() == null ||
                 request.getEmail() == null || request.getPhone() == null) {
-            throw new IllegalArgumentException("All fields (username, password, email, phone) are required");
+            throw new IllegalArgumentException("All fields (username, password, email, phone) are required.");
         }
 
         if (!request.getPhone().matches("\\d{10}")) {
-            throw new IllegalArgumentException("Please enter a valid 10-digit phone number");
+            throw new IllegalArgumentException("Please enter a valid 10-digit phone number.");
+        }
+
+        if (!"ngo".equalsIgnoreCase(request.getUserType()) && !"donor".equalsIgnoreCase(request.getUserType())) {
+            throw new IllegalArgumentException("Invalid account type. Only 'ngo' or 'donor' are allowed.");
+        }
+
+        if ("ngo".equalsIgnoreCase(request.getUserType())) {
+            if (request.getOrganization() == null || request.getArea() == null) {
+                throw new IllegalArgumentException("Organization and area are required for NGO accounts.");
+            }
         }
 
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Username already exists");
+            throw new IllegalArgumentException("Username already exists.");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
+            throw new IllegalArgumentException("Email already exists.");
         }
         if (userRepository.existsByPhone(request.getPhone())) {
-            throw new IllegalArgumentException("Phone number already exists");
+            throw new IllegalArgumentException("Phone number already exists.");
         }
     }
-}
+};
