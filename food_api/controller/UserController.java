@@ -1,12 +1,17 @@
 package com.food_api.food_api.controller;
 
+import com.food_api.food_api.dto.ChangePasswordRequest;
 import com.food_api.food_api.entity.User;
 import com.food_api.food_api.repository.UserRepository;
 import com.food_api.food_api.service.ApiResponse;
+import com.food_api.food_api.service.UserService;
 import com.food_api.food_api.service.jwt.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
@@ -17,7 +22,8 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
-
+    @Autowired
+    private UserService userService;
     @Autowired
     private JwtService jwtService;
 
@@ -79,5 +85,13 @@ public class UserController {
         userRepository.save(existingUser);
 
         return new ApiResponse(true, "Profile updated successfully");
+    }
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody ChangePasswordRequest request) {
+
+        User user = (User) userDetails;
+        return userService.changePassword(user.getId(), request);
     }
 }

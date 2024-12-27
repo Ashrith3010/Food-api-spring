@@ -1,5 +1,6 @@
 package com.food_api.food_api.service;
 
+import com.food_api.food_api.dto.ChangePasswordRequest;
 import com.food_api.food_api.dto.UserDTO;
 import com.food_api.food_api.dto.credentials.LoginRequest;
 import com.food_api.food_api.dto.credentials.LoginResponse;
@@ -8,6 +9,7 @@ import com.food_api.food_api.entity.User;
 import com.food_api.food_api.repository.UserRepository;
 import com.food_api.food_api.service.jwt.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -187,6 +189,49 @@ public class UserService {
             errorResponse.put("success", false);
             errorResponse.put("message", "Error fetching user profile: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+    public ResponseEntity<?> changePassword(Long userId, ChangePasswordRequest request) {
+        try {
+            if (request.getCurrentPassword() == null || request.getNewPassword() == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "success", false,
+                                "message", "Current password and new password are required"
+                        ));
+            }
+
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            // Verify current password
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                LOGGER.warn("Invalid current password for user: {}", user.getUsername());
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                                "success", false,
+                                "message", "Current password is incorrect"
+                        ));
+            }
+
+            // Update password
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            userRepository.save(user);
+
+            LOGGER.info("Password changed successfully for user: {}", user.getUsername());
+            return ResponseEntity.ok()
+                    .body(Map.of(
+                            "success", true,
+                            "message", "Password changed successfully"
+                    ));
+
+        } catch (Exception e) {
+            LOGGER.error("Error changing password: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "success", false,
+                            "message", "Server error, please try again"
+                    ));
         }
     }
 };
