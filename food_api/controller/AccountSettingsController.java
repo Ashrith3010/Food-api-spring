@@ -14,9 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
@@ -135,6 +133,56 @@ public class AccountSettingsController {
 
         } catch (Exception e) {
             log.error("Error in getSettings", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse(false, "Server error: " + e.getMessage(), null));
+        }
+
+    }
+    @PutMapping
+    public ResponseEntity<?> updateSettings(@RequestBody AccountSettingsDTO settingsDTO, Authentication authentication) {
+        try {
+            if (authentication == null) {
+                log.error("Authentication is null");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Not authenticated", null));
+            }
+
+            String username = authentication.getName();
+            log.info("Attempting to update settings for username: {}", username);
+
+            Optional<User> userOptional = userRepository.findByUsername(username);
+
+            if (userOptional.isEmpty()) {
+                log.error("No user found with username: {}", username);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse(false, "User not found", null));
+            }
+
+            User user = userOptional.get();
+            log.info("Found user with ID: {} and username: {}", user.getId(), user.getUsername());
+
+            Optional<AccountSettings> settingsOptional = settingsRepository.findByUserId(user.getId());
+
+            if (settingsOptional.isEmpty()) {
+                log.error("Settings not found for user ID: {}. Creating default settings.", user.getId());
+                AccountSettings newSettings = new AccountSettings();
+                newSettings.setUser(user);
+                settingsRepository.save(newSettings);
+            }
+
+            AccountSettings settings = settingsOptional.orElse(new AccountSettings());
+            settings.setNotifications(settingsDTO.getNotifications());
+            settings.setEmailUpdates(settingsDTO.getEmailUpdates());
+            settings.setPrivacyMode(settingsDTO.getPrivacyMode());
+
+            settingsRepository.save(settings);
+
+            log.info("Settings updated successfully for user ID: {}", user.getId());
+
+            return ResponseEntity.ok(new ApiResponse(true, "Settings updated successfully", null));
+
+        } catch (Exception e) {
+            log.error("Error in updateSettings", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse(false, "Server error: " + e.getMessage(), null));
         }
