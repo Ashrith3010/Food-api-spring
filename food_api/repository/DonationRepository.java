@@ -10,4 +10,7 @@ public interface DonationRepository extends JpaRepository<Donation, Long> {
     List<Donation> findByClaimedFalseAndExpiryTimeAfter(LocalDateTime now);
     List<Donation> findByClaimed(boolean claimed);
     List<Donation> findByLocationIgnoreCase(String location);
+    long countByClaimed(boolean claimed);
+
+
 }
