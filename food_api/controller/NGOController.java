@@ -1,31 +1,28 @@
 package com.food_api.food_api.controller;
 
 
-import com.food_api.food_api.dto.credentials.NGOResponse;
-import com.food_api.food_api.service.NGOService;
+import com.food_api.food_api.dto.UserDTO;
+import com.food_api.food_api.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-
 @RestController
-@RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:3000")
+@RequestMapping("/api/ngos")
 public class NGOController {
 
     @Autowired
-    private NGOService ngoService;
+    private UserService userService;
 
-    @GetMapping("/ngos")
+    @GetMapping
     public ResponseEntity<?> getNGODirectory() {
         try {
-            List<NGOResponse> ngos = ngoService.getAllNGOs();
+            List<UserDTO> ngos = userService.getNGOs();
             return ResponseEntity.ok(ngos);
         } catch (Exception e) {
-            return ResponseEntity
-                    .internalServerError()
+            return ResponseEntity.status(500)
                     .body(Map.of(
                             "success", false,
                             "message", "Server error"

@@ -1,5 +1,6 @@
 package com.food_api.food_api.service;
 
+import com.food_api.food_api.dto.UserDTO;
 import com.food_api.food_api.dto.credentials.LoginRequest;
 import com.food_api.food_api.dto.credentials.LoginResponse;
 import com.food_api.food_api.dto.RegisterRequest;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 @Service
@@ -119,5 +123,24 @@ public class UserService {
         if (userRepository.existsByPhone(request.getPhone())) {
             throw new IllegalArgumentException("Phone number already exists.");
         }
+    }
+    public List<UserDTO> getNGOs() {
+        return userRepository.findByType("ngo")
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    private UserDTO convertToDTO(User user) {
+        UserDTO dto = new UserDTO();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
+        dto.setType(user.getType());
+        dto.setOrganization(user.getOrganization());
+        dto.setArea(user.getArea());
+        dto.setCreatedAt(user.getCreatedAt());
+        // Note: password is intentionally not included in DTO
+        return dto;
     }
 };
