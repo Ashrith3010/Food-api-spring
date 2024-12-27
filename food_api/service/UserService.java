@@ -130,7 +130,7 @@ public class UserService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
-    private UserDTO convertToDTO(User user) {
+    public UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());

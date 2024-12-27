@@ -143,4 +143,7 @@ public class User implements UserDetails {
     public void setArea(String area) {
         this.area = area;
     }
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private AccountSettings settings;
+
 }
