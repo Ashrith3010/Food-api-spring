@@ -151,4 +151,22 @@ public class DonationService {
         dto.setUpdatedAt(donation.getUpdatedAt());
         return dto;
     }
+    public DonationDTO claimDonation(String donationId, User claimingUser) {
+        Donation donation = donationRepository.findById(Long.parseLong(donationId))
+                .orElseThrow(() -> new IllegalStateException("Donation not found"));
+
+        if (donation.isClaimed()) {
+            throw new IllegalStateException("Donation already claimed");
+        }
+
+        // Update donation status
+        donation.setClaimed(true);
+        donation.setClaimedBy(claimingUser);
+        donation.setClaimedAt(LocalDateTime.now());
+
+        // Save the updated donation
+        Donation updatedDonation = donationRepository.save(donation);
+
+        return convertToDTO(updatedDonation);
+    }
 }

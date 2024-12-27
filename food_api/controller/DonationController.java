@@ -69,4 +69,28 @@ public class DonationController {
                             "error", e.getMessage()));
         }
     }
+        @PostMapping("/{id}/claim")
+        public ResponseEntity<?> claimDonation(
+                @PathVariable String id,
+                @AuthenticationPrincipal User currentUser) {
+            try {
+                DonationDTO claimedDonation = donationService.claimDonation(id, currentUser);
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "Donation claimed successfully",
+                        "updatedDonation", claimedDonation
+                ));
+            } catch (IllegalStateException e) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", e.getMessage()
+                ));
+            } catch (Exception e) {
+                return ResponseEntity.status(500).body(Map.of(
+                        "success", false,
+                        "message", "Server error"
+                ));
+            }
+
+    }
 }
