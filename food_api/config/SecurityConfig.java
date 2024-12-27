@@ -17,10 +17,12 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
     @Autowired
     private JwtAuthenticationFilter jwtAuthFilter;
 
@@ -30,15 +32,35 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/donations").permitAll()
+
+                        // Profile endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/account/profile").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/account/profile").authenticated()
+
+                        // Donation endpoints with authentication
                         .requestMatchers(HttpMethod.POST, "/api/donations").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/donations").permitAll() // Allow public access to view donations
+                        .requestMatchers(HttpMethod.PUT, "/api/donations/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/donations/**").authenticated()
+
+                        // NGO specific endpoints
+                        .requestMatchers("/api/ngo/**").hasRole("NGO")
+
+                        // Catch all other requests
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(403);
+                            response.getWriter().write("Unauthorized: " + authException.getMessage());
+                        })
+                );
 
         return http.build();
     }
@@ -47,21 +69,46 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Allow your frontend (e.g., React app running on localhost:3000) to access backend
+        // Allow frontend origin
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
 
-        // Allow specific HTTP methods for CORS
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Allow specific HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                HttpMethod.GET.name(),
+                HttpMethod.POST.name(),
+                HttpMethod.PUT.name(),
+                HttpMethod.DELETE.name(),
+                HttpMethod.OPTIONS.name()
+        ));
 
-        // Allow headers related to Authorization and Content-Type
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        // Allow specific headers
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Headers"
+        ));
 
-        // Allow credentials to be sent with requests (important for token-based auth)
+        // Expose headers that frontend can read
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Headers"
+        ));
+
+        // Allow credentials
         configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // How long the CORS pre-flight response should be cached
+        configuration.setMaxAge(3600L);
 
-        // Apply this CORS configuration to all endpoints
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

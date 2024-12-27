@@ -8,13 +8,16 @@ import com.food_api.food_api.entity.User;
 import com.food_api.food_api.repository.UserRepository;
 import com.food_api.food_api.service.jwt.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -142,5 +145,48 @@ public class UserService {
         dto.setCreatedAt(user.getCreatedAt());
         // Note: password is intentionally not included in DTO
         return dto;
+    }
+    public ResponseEntity<?> getUserProfile(Long userId) {
+        try {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("username", user.getUsername());
+            userData.put("email", user.getEmail());
+            userData.put("phone", user.getPhone());
+            userData.put("type", user.getType());
+            userData.put("createdAt", user.getCreatedAt());
+            userData.put("organization", user.getOrganization());
+            userData.put("area", user.getArea());
+            userData.put("enabled", user.isEnabled());
+            userData.put("accountNonLocked", user.isAccountNonLocked());
+            userData.put("credentialsNonExpired", user.isCredentialsNonExpired());
+            userData.put("accountNonExpired", user.isAccountNonExpired());
+
+            // Add authorities
+            List<Map<String, String>> authorities = user.getAuthorities().stream()
+                    .map(auth -> {
+                        Map<String, String> authority = new HashMap<>();
+                        authority.put("authority", auth.getAuthority());
+                        return authority;
+                    })
+                    .collect(Collectors.toList());
+            userData.put("authorities", authorities);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "User profile fetched successfully");
+            response.put("data", userData);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            LOGGER.error("Error fetching user profile: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Error fetching user profile: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 };
