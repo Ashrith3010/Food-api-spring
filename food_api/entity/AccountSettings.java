@@ -1,17 +1,9 @@
 package com.food_api.food_api.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "account_settings")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class AccountSettings {
     @Id
     @Column(name = "user_id")
@@ -19,7 +11,7 @@ public class AccountSettings {
 
     @OneToOne
     @MapsId
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", referencedColumnName = "id")
     private User user;
 
     @Column(nullable = false)
@@ -31,7 +23,19 @@ public class AccountSettings {
     @Column(nullable = false)
     private Boolean privacyMode = false;
 
-    // Custom getters and setters if needed beyond what Lombok provides
+    // Default constructor
+    public AccountSettings() {}
+
+    // Parameterized constructor
+    public AccountSettings(Long id, User user, Boolean notifications, Boolean emailUpdates, Boolean privacyMode) {
+        this.id = id;
+        this.user = user;
+        this.notifications = notifications != null ? notifications : true;
+        this.emailUpdates = emailUpdates != null ? emailUpdates : true;
+        this.privacyMode = privacyMode != null ? privacyMode : false;
+    }
+
+    // Getters and Setters
     public Long getId() {
         return id;
     }

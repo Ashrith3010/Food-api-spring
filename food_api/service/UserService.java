@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -39,24 +40,19 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         try {
-            // Find user by username, email, or phone
             User user = userRepository.findByUsername(request.getUsername())
                     .orElseGet(() -> userRepository.findByEmail(request.getUsername())
                             .orElseGet(() -> userRepository.findByPhone(request.getUsername())
                                     .orElseThrow(() -> new UsernameNotFoundException("User not found"))));
 
-            // Verify password
             if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
                 LOGGER.warn("Invalid credentials for user: {}", request.getUsername());
                 return LoginResponse.createErrorResponse("Invalid credentials");
             }
 
-            // Generate JWT token
             String token = jwtService.generateToken(user);
-
             LOGGER.info("Login successful for user: {}", user.getUsername());
 
-            // Create successful response
             return new LoginResponse(
                     true,
                     token,
@@ -66,7 +62,7 @@ public class UserService {
             );
         } catch (Exception e) {
             LOGGER.error("Login error: {}", e.getMessage());
-            return LoginResponse.createErrorResponse(e.getMessage());
+            return LoginResponse.createErrorResponse("Login failed. Please check your credentials.");
         }
     }
 
@@ -81,6 +77,7 @@ public class UserService {
             user.setPhone(request.getPhone());
             user.setType(request.getUserType());
             user.setCreatedAt(LocalDateTime.now());
+            user.setEmailUpdates(false); // Set default value for emailUpdates
 
             if ("ngo".equalsIgnoreCase(request.getUserType())) {
                 user.setOrganization(request.getOrganization());
@@ -129,12 +126,14 @@ public class UserService {
             throw new IllegalArgumentException("Phone number already exists.");
         }
     }
+
     public List<UserDTO> getNGOs() {
         return userRepository.findByType("ngo")
                 .stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
+
     public UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
         dto.setId(user.getId());
@@ -145,9 +144,9 @@ public class UserService {
         dto.setOrganization(user.getOrganization());
         dto.setArea(user.getArea());
         dto.setCreatedAt(user.getCreatedAt());
-        // Note: password is intentionally not included in DTO
         return dto;
     }
+
     public ResponseEntity<?> getUserProfile(Long userId) {
         try {
             User user = userRepository.findById(userId)
@@ -167,71 +166,53 @@ public class UserService {
             userData.put("credentialsNonExpired", user.isCredentialsNonExpired());
             userData.put("accountNonExpired", user.isAccountNonExpired());
 
-            // Add authorities
             List<Map<String, String>> authorities = user.getAuthorities().stream()
-                    .map(auth -> {
-                        Map<String, String> authority = new HashMap<>();
-                        authority.put("authority", auth.getAuthority());
-                        return authority;
-                    })
+                    .map(auth -> Map.of("authority", auth.getAuthority()))
                     .collect(Collectors.toList());
             userData.put("authorities", authorities);
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "User profile fetched successfully");
-            response.put("data", userData);
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "User profile fetched successfully",
+                    "data", userData
+            ));
         } catch (Exception e) {
             LOGGER.error("Error fetching user profile: {}", e.getMessage());
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", "Error fetching user profile: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Error fetching user profile: " + e.getMessage()
+            ));
         }
     }
+
     public ResponseEntity<?> changePassword(Long userId, ChangePasswordRequest request) {
         try {
             if (request.getCurrentPassword() == null || request.getNewPassword() == null) {
                 return ResponseEntity.badRequest()
-                        .body(Map.of(
-                                "success", false,
-                                "message", "Current password and new password are required"
-                        ));
+                        .body(Map.of("success", false, "message", "Current password and new password are required"));
             }
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-            // Verify current password
             if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
                 LOGGER.warn("Invalid current password for user: {}", user.getUsername());
                 return ResponseEntity.badRequest()
-                        .body(Map.of(
-                                "success", false,
-                                "message", "Current password is incorrect"
-                        ));
+                        .body(Map.of("success", false, "message", "Current password is incorrect"));
             }
 
-            // Update password
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
             userRepository.save(user);
 
             LOGGER.info("Password changed successfully for user: {}", user.getUsername());
-            return ResponseEntity.ok()
-                    .body(Map.of(
-                            "success", true,
-                            "message", "Password changed successfully"
-                    ));
-
+            return ResponseEntity.ok().body(Map.of(
+                    "success", true,
+                    "message", "Password changed successfully"
+            ));
         } catch (Exception e) {
             LOGGER.error("Error changing password: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of(
-                            "success", false,
-                            "message", "Server error, please try again"
-                    ));
+                    .body(Map.of("success", false, "message", "Server error, please try again"));
         }
     }
-};
+}

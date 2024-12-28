@@ -1,3 +1,4 @@
+// DonationService.java
 package com.food_api.food_api.service;
 
 import com.food_api.food_api.dto.DonationDTO;
@@ -7,8 +8,9 @@ import com.food_api.food_api.repository.DonationRepository;
 import com.food_api.food_api.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,87 +40,33 @@ public class DonationService {
         return convertToDTO(savedDonation);
     }
 
-    public List<DonationDTO> getDonations(String viewType, String city, LocalDateTime date,
-                                          String status, String sortBy, User currentUser) {
+    public List<DonationDTO> getDonationsByFilters(String viewType, String city, LocalDateTime date,
+                                                   String status, String sortBy, User currentUser) {
         List<Donation> donations = donationRepository.findAll();
 
         // Apply filters
         if (viewType != null) {
-            switch (viewType) {
-                case "available":
-                    donations = donations.stream()
-                            .filter(d -> !d.isClaimed() && d.getExpiryTime().isAfter(LocalDateTime.now()))
-                            .collect(Collectors.toList());
-                    break;
-                case "my-donations":
-                    if ("donor".equals(currentUser.getType())) {
-                        donations = donations.stream()
-                                .filter(d -> d.getDonor().getId().equals(currentUser.getId()))
-                                .collect(Collectors.toList());
-                    }
-                    break;
-                case "claimed":
-                    donations = donations.stream()
-                            .filter(Donation::isClaimed)
-                            .collect(Collectors.toList());
-                    break;
-            }
+            donations = applyViewTypeFilter(donations, viewType, currentUser);
         }
 
-        // Apply location filter
         if (city != null) {
-            final String searchCity = city.toLowerCase();
             donations = donations.stream()
-                    .filter(d -> d.getLocation().toLowerCase().equals(searchCity) ||
-                            d.getArea().toLowerCase().equals(searchCity))
+                    .filter(d -> d.getLocation().equalsIgnoreCase(city) || d.getArea().equalsIgnoreCase(city))
                     .collect(Collectors.toList());
         }
 
-        // Apply date filter
         if (date != null) {
-            LocalDateTime filterDate = date;
             donations = donations.stream()
-                    .filter(d -> d.getCreatedAt().toLocalDate().equals(filterDate.toLocalDate()))
+                    .filter(d -> d.getCreatedAt().toLocalDate().equals(date.toLocalDate()))
                     .collect(Collectors.toList());
         }
 
-        // Apply status filter
         if (status != null) {
-            switch (status) {
-                case "active":
-                    donations = donations.stream()
-                            .filter(d -> !d.isClaimed() && d.getExpiryTime().isAfter(LocalDateTime.now()))
-                            .collect(Collectors.toList());
-                    break;
-                case "expired":
-                    donations = donations.stream()
-                            .filter(d -> d.getExpiryTime().isBefore(LocalDateTime.now()))
-                            .collect(Collectors.toList());
-                    break;
-                case "claimed":
-                    donations = donations.stream()
-                            .filter(Donation::isClaimed)
-                            .collect(Collectors.toList());
-                    break;
-            }
+            donations = applyStatusFilter(donations, status);
         }
 
-        // Apply sorting
         if (sortBy != null) {
-            switch (sortBy) {
-                case "date":
-                    donations.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-                    break;
-                case "expiry":
-                    donations.sort((a, b) -> a.getExpiryTime().compareTo(b.getExpiryTime()));
-                    break;
-                case "quantity":
-                    donations.sort((a, b) -> Integer.compare(
-                            Integer.parseInt(b.getQuantity()),
-                            Integer.parseInt(a.getQuantity())
-                    ));
-                    break;
-            }
+            donations = sortDonations(donations, sortBy);
         }
 
         return donations.stream()
@@ -126,31 +74,9 @@ public class DonationService {
                 .collect(Collectors.toList());
     }
 
-    private DonationDTO convertToDTO(Donation donation) {
-        DonationDTO dto = new DonationDTO();
-        dto.setId(donation.getId().toString());
-        dto.setFoodItem(donation.getFoodItem());
-        dto.setQuantity(donation.getQuantity());
-        dto.setLocation(donation.getLocation());
-        dto.setArea(donation.getArea());
-        dto.setExpiryTime(donation.getExpiryTime());
-        dto.setServingSize(donation.getServingSize());
-        dto.setStorageInstructions(donation.getStorageInstructions());
-        dto.setDietaryInfo(donation.getDietaryInfo());
-        dto.setDonorId(donation.getDonor().getId().toString());
-        dto.setDonorName(donation.getDonor().getUsername());
-        dto.setDonorType(donation.getDonor().getType());
-        dto.setDonorEmail(donation.getDonor().getEmail());
-        dto.setDonorPhone(donation.getDonor().getPhone());
-        dto.setClaimed(donation.isClaimed());
-        if (donation.getClaimedBy() != null) {
-            dto.setClaimedBy(donation.getClaimedBy().getId().toString());
-        }
-        dto.setClaimedAt(donation.getClaimedAt());
-        dto.setCreatedAt(donation.getCreatedAt());
-        dto.setUpdatedAt(donation.getUpdatedAt());
-        return dto;
-    }
+
+
+
     public DonationDTO claimDonation(String donationId, User claimingUser) {
         Donation donation = donationRepository.findById(Long.parseLong(donationId))
                 .orElseThrow(() -> new IllegalStateException("Donation not found"));
@@ -159,14 +85,139 @@ public class DonationService {
             throw new IllegalStateException("Donation already claimed");
         }
 
-        // Update donation status
         donation.setClaimed(true);
         donation.setClaimedBy(claimingUser);
         donation.setClaimedAt(LocalDateTime.now());
 
-        // Save the updated donation
         Donation updatedDonation = donationRepository.save(donation);
 
         return convertToDTO(updatedDonation);
     }
+
+    private List<Donation> applyViewTypeFilter(List<Donation> donations, String viewType, User currentUser) {
+        switch (viewType) {
+            case "available":
+                return donations.stream()
+                        .filter(d -> !d.isClaimed() && d.getExpiryTime().isAfter(LocalDateTime.now()))
+                        .collect(Collectors.toList());
+            case "my-donations":
+                if ("donor".equals(currentUser.getType())) {
+                    return donations.stream()
+                            .filter(d -> d.getDonor().getId().equals(currentUser.getId()))
+                            .collect(Collectors.toList());
+                }
+                break;
+            case "claimed":
+                return donations.stream()
+                        .filter(Donation::isClaimed)
+                        .collect(Collectors.toList());
+        }
+        return donations;
+    }
+
+    private List<Donation> applyStatusFilter(List<Donation> donations, String status) {
+        switch (status) {
+            case "active":
+                return donations.stream()
+                        .filter(d -> !d.isClaimed() && d.getExpiryTime().isAfter(LocalDateTime.now()))
+                        .collect(Collectors.toList());
+            case "expired":
+                return donations.stream()
+                        .filter(d -> d.getExpiryTime().isBefore(LocalDateTime.now()))
+                        .collect(Collectors.toList());
+            case "claimed":
+                return donations.stream()
+                        .filter(Donation::isClaimed)
+                        .collect(Collectors.toList());
+        }
+        return donations;
+    }
+
+    private List<Donation> sortDonations(List<Donation> donations, String sortBy) {
+        switch (sortBy) {
+            case "date":
+                donations.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+                break;
+            case "expiry":
+                donations.sort((a, b) -> a.getExpiryTime().compareTo(b.getExpiryTime()));
+                break;
+            case "quantity":
+                donations.sort((a, b) -> Integer.compare(
+                        Integer.parseInt(b.getQuantity()),
+                        Integer.parseInt(a.getQuantity())
+                ));
+                break;
+        }
+        return donations;
+    }
+    public List<DonationDTO> getDonationsByUser(User user) {
+        List<Donation> donations = new ArrayList<>();
+        try {
+            System.out.println("Getting donations for user: " + user.getId() + ", type: " + user.getType());
+
+            if ("ngo".equals(user.getType())) {
+                // For NGOs, get both their claimed donations AND donations they created
+                List<Donation> claimedDonations = donationRepository.findByClaimedBy(user);
+                List<Donation> createdDonations = donationRepository.findByDonor(user);
+                donations.addAll(claimedDonations);
+                donations.addAll(createdDonations);
+
+                System.out.println("NGO donations - Claimed: " + claimedDonations.size() +
+                        ", Created: " + createdDonations.size());
+            } else if ("donor".equals(user.getType())) {
+                donations = donationRepository.findByDonor(user);
+                System.out.println("Donor donations found: " + donations.size());
+            }
+
+            List<DonationDTO> dtos = donations.stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+
+            System.out.println("Created DTOs: " + dtos.size());
+            return dtos;
+
+        } catch (Exception e) {
+            System.err.println("Error in getDonationsByUser: " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
+    private DonationDTO convertToDTO(Donation donation) {
+        DonationDTO dto = new DonationDTO();
+        try {
+            dto.setId(donation.getId().toString());
+            dto.setFoodItem(donation.getFoodItem());
+            dto.setQuantity(donation.getQuantity());
+            dto.setLocation(donation.getLocation());
+            dto.setArea(donation.getArea());
+            dto.setExpiryTime(donation.getExpiryTime());
+            dto.setServingSize(donation.getServingSize());
+            dto.setStorageInstructions(donation.getStorageInstructions());
+            dto.setDietaryInfo(donation.getDietaryInfo());
+
+            if (donation.getDonor() != null) {
+                dto.setDonorId(donation.getDonor().getId().toString());
+                dto.setDonorName(donation.getDonor().getUsername());
+                dto.setDonorType(donation.getDonor().getType());
+            }
+
+            dto.setClaimed(donation.isClaimed());
+
+            if (donation.getClaimedBy() != null) {
+                dto.setClaimedBy(donation.getClaimedBy().getId().toString());
+            }
+
+            dto.setClaimedAt(donation.getClaimedAt());
+            dto.setCreatedAt(donation.getCreatedAt());
+            dto.setUpdatedAt(donation.getUpdatedAt());
+
+            System.out.println("Successfully converted donation ID " + donation.getId() + " to DTO");
+        } catch (Exception e) {
+            System.err.println("Error converting donation ID " + donation.getId() + " to DTO: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return dto;
+    }
 }
+

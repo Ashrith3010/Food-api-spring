@@ -30,49 +30,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
 
-        // If there's no authorization header or it's not a Bearer token, continue the request
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        try {
-            // Extract the JWT token from the header
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String jwt = authHeader.substring(7);
+            try {
+                if (jwtService.validateToken(jwt)) {
+                    Claims claims = jwtService.extractClaims(jwt);
+                    String username = claims.get("username", String.class);
 
-            // Validate the token
-            if (jwtService.validateToken(jwt)) {
-                Claims claims = jwtService.extractClaims(jwt);
-                String username = claims.get("username", String.class);
+                    if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                        User user = userRepository.findByUsername(username)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-                // If username is present and authentication is not already set
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    User user = userRepository.findByUsername(username)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
-
-                    // Set user details from JWT claims and the database
-                    if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                        user.setId(Long.valueOf(jwtService.getUserIdFromToken(jwt)));
-                        user.setEmail(jwtService.getEmailFromToken(jwt));
-                        user.setPhone(jwtService.getPhoneNumberFromToken(jwt));
-
-                        // Create authentication token
+                        // Create authentication with proper authorities
                         UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                                 user,
                                 null,
-                                user.getAuthorities() // Make sure User implements UserDetails or has appropriate authorities
+                                user.getAuthorities()  // This should include ROLE_NGO or ROLE_DONOR
                         );
 
                         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                        // Add debug logging
+                        System.out.println("User authorities: " + user.getAuthorities());
                     }
                 }
+            } catch (Exception e) {
+                System.err.println("JWT Authentication error: " + e.getMessage());
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            logger.error("JWT Authentication error: ", e);
         }
-
-        // Continue with the filter chain
         filterChain.doFilter(request, response);
     }
 }

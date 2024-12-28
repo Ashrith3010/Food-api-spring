@@ -1,6 +1,7 @@
 package com.food_api.food_api.config;
 
 import com.food_api.food_api.service.jwt.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,6 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
     @Autowired
     private JwtAuthenticationFilter jwtAuthFilter;
 
@@ -40,10 +40,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/account/profile").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/account/profile").authenticated()
 
+                        .requestMatchers("/api/donations/user").hasAnyRole("NGO", "DONOR")  // Add this line
+                        .requestMatchers("/api/donations/**").authenticated()
                         // Donation endpoints with authentication
+                        .requestMatchers("/api/donations/user").authenticated()  // Make sure this matches your controller
                         .requestMatchers(HttpMethod.POST, "/api/donations").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/donations/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/donations/**").authenticated()
+                        .requestMatchers("/api/donations/**").authenticated()
 
                         // NGO specific endpoints
                         .requestMatchers("/api/ngo/**").hasRole("NGO")
@@ -54,16 +58,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(403);
-                            response.getWriter().write("Unauthorized: " + authException.getMessage());
-                        })
-                );
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -117,4 +116,5 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
 }
