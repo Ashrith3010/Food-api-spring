@@ -1,8 +1,10 @@
 package com.food_api.food_api.dto.credentials;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.food_api.food_api.entity.User;
 import com.food_api.food_api.entity.AccountSettings;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ProfileDTO {
     private Long id;
     private String username;
@@ -12,9 +14,12 @@ public class ProfileDTO {
     private String organization;
     private String area;
     private Boolean emailUpdates;
+
+    // Create a simplified settings object that doesn't include the user reference
+    @JsonIgnoreProperties("user")  // This prevents the User object from being serialized within settings
     private AccountSettings settings;
 
-    // Add default constructor for Jackson deserialization
+    // Default constructor
     public ProfileDTO() {
     }
 
@@ -28,25 +33,10 @@ public class ProfileDTO {
         this.organization = user.getOrganization();
         this.area = user.getArea();
         this.emailUpdates = user.getEmailUpdates();
-        this.settings = user.getSettings();
+        this.settings = user.getSettings();  // The @JsonIgnoreProperties annotation will prevent infinite recursion
     }
 
-    // All-args constructor for manual creation
-    public ProfileDTO(Long id, String username, String email, String phone,
-                      String type, String organization, String area,
-                      Boolean emailUpdates, AccountSettings settings) {
-        this.id = id;
-        this.username = username;
-        this.email = email;
-        this.phone = phone;
-        this.type = type;
-        this.organization = organization;
-        this.area = area;
-        this.emailUpdates = emailUpdates;
-        this.settings = settings;
-    }
-
-    // Existing getters and setters
+    // Getters and setters remain the same
     public Long getId() {
         return id;
     }
