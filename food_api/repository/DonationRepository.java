@@ -25,4 +25,12 @@ public interface DonationRepository extends JpaRepository<Donation, Long> {
 
     @Query("SELECT d FROM Donation d WHERE d.claimed = true")
     List<Donation> findAllClaimedDonations();
+
+    // New method for finding recent donations
+    List<Donation> findByCreatedAtAfterOrClaimedAtAfter(LocalDateTime createdAfter, LocalDateTime claimedAfter);
+
+    // Alternative method using @Query for more control
+    @Query("SELECT d FROM Donation d WHERE d.createdAt > :timestamp OR " +
+            "(d.claimedAt IS NOT NULL AND d.claimedAt > :timestamp)")
+    List<Donation> findRecentActivity(@Param("timestamp") LocalDateTime timestamp);
 }

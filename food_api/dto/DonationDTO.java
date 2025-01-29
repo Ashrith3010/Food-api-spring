@@ -25,10 +25,13 @@ public class DonationDTO {
     private LocalDateTime claimedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+   ;
+
 
     public String getId() {
         return id;
     }
+
 
     public void setId(String id) {
         this.id = id;

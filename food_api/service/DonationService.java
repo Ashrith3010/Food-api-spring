@@ -21,6 +21,9 @@ public class DonationService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private EmailService emailService;
+
     public DonationDTO createDonation(DonationDTO donationDTO, User currentUser) {
         Donation donation = new Donation();
         donation.setFoodItem(donationDTO.getFoodItem());
@@ -37,8 +40,31 @@ public class DonationService {
         donation.setUpdatedAt(LocalDateTime.now());
 
         Donation savedDonation = donationRepository.save(donation);
+        // Add logging for email notifications
+        System.out.println("Starting email notifications for new donation ID: " + savedDonation.getId());
+
+        List<User> nearbyNGOs = userRepository.findByTypeAndArea("ngo", donation.getArea());
+        System.out.println("Found " + nearbyNGOs.size() + " nearby NGOs in area: " + donation.getArea());
+
+        int emailsSent = 0;
+        for (User ngo : nearbyNGOs) {
+            try {
+                System.out.println("Attempting to send notification to NGO: " + ngo.getUsername() + " (Email: " + ngo.getEmail() + ")");
+                emailService.sendDonationNotificationToNGOs(convertToDTO(savedDonation), ngo);
+                emailsSent++;
+                System.out.println("Successfully sent notification to NGO: " + ngo.getUsername());
+            } catch (Exception e) {
+                System.err.println("Failed to send notification to NGO: " + ngo.getUsername());
+                System.err.println("Error details: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        System.out.println("Email notification process completed. Successfully sent " + emailsSent + " out of " + nearbyNGOs.size() + " notifications");
+
         return convertToDTO(savedDonation);
     }
+
 
     public List<DonationDTO> getDonationsByFilters(String viewType, String city, LocalDateTime date,
                                                    String status, String sortBy, User currentUser) {
@@ -78,11 +104,19 @@ public class DonationService {
 
 
     public DonationDTO claimDonation(String donationId, User claimingUser) {
+        System.out.println("Processing donation claim - Donation ID: " + donationId + ", Claiming User: " + claimingUser.getUsername());
+
         Donation donation = donationRepository.findById(Long.parseLong(donationId))
                 .orElseThrow(() -> new IllegalStateException("Donation not found"));
 
         if (donation.isClaimed()) {
+            System.out.println("Claim failed - Donation " + donationId + " is already claimed");
             throw new IllegalStateException("Donation already claimed");
+        }
+
+        // Add validation for donor email
+        if (donation.getDonor() == null || donation.getDonor().getEmail() == null || donation.getDonor().getEmail().trim().isEmpty()) {
+            throw new IllegalStateException("Cannot claim donation: donor email is missing");
         }
 
         donation.setClaimed(true);
@@ -90,6 +124,20 @@ public class DonationService {
         donation.setClaimedAt(LocalDateTime.now());
 
         Donation updatedDonation = donationRepository.save(donation);
+
+        System.out.println("Donation " + donationId + " successfully claimed. Sending notification to donor: " +
+                donation.getDonor().getUsername() + " (Email: " + donation.getDonor().getEmail() + ")");
+
+        try {
+            emailService.sendDonationClaimedNotification(convertToDTO(updatedDonation), claimingUser);
+            System.out.println("Successfully sent claim notification to donor");
+        } catch (Exception e) {
+            System.err.println("Failed to send claim notification to donor");
+            System.err.println("Error details: " + e.getMessage());
+            e.printStackTrace();
+            // Consider whether you want to rollback the claim if email notification fails
+            // For now, we'll just log the error but allow the claim to proceed
+        }
 
         return convertToDTO(updatedDonation);
     }
@@ -199,6 +247,7 @@ public class DonationService {
             if (donation.getDonor() != null) {
                 dto.setDonorId(donation.getDonor().getId().toString());
                 dto.setDonorName(donation.getDonor().getUsername());
+                dto.setDonorEmail(donation.getDonor().getEmail());  // Add this line to set the donor email
                 dto.setDonorType(donation.getDonor().getType());
             }
 
@@ -212,7 +261,8 @@ public class DonationService {
             dto.setCreatedAt(donation.getCreatedAt());
             dto.setUpdatedAt(donation.getUpdatedAt());
 
-            System.out.println("Successfully converted donation ID " + donation.getId() + " to DTO");
+            System.out.println("Successfully converted donation ID " + donation.getId() + " to DTO" +
+                    " (Donor Email: " + dto.getDonorEmail() + ")");  // Add logging for donor email
         } catch (Exception e) {
             System.err.println("Error converting donation ID " + donation.getId() + " to DTO: " + e.getMessage());
             e.printStackTrace();
@@ -220,4 +270,3 @@ public class DonationService {
         return dto;
     }
 }
-
